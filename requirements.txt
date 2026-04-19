@@ -1,0 +1,14 @@
+# AAC Gaze Tracking — Python dependencies
+#
+# Requires Python 3.11.x (NOT 3.12+).
+#   MediaPipe 0.10.x only supports Python <=3.11 on macOS ARM64.
+#   Create the venv with:  python3.11 -m venv .venv
+#
+# Pinned to the exact versions used to produce the benchmark results in
+# RESULTS.md (1.50° mean angular error on EyeTrax + pose gate).
+
+eyetrax==0.4.0
+mediapipe==0.10.14
+opencv-python==4.11.0.86
+pygame==2.6.1
+numpy==1.26.4
