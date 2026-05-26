@@ -23,11 +23,12 @@ comparison in [RESULTS.md](RESULTS.md).
 
 ## Repository contents
 
-| File | Role |
+| Path | Role |
 |---|---|
-| `gaze_test_eyetrax.py` | End-to-end benchmark: calibration → bias → evaluation → free tracking |
-| `head_pose.py` | MediaPipe Face Mesh + `cv2.solvePnP` head-pose estimator (6-DoF) |
-| `requirements.txt` | Pinned Python dependencies |
+| `app/` | Flutter iPad AAC frontend (gaze cursor, dwell-to-select board, calibration UI, mouse/sim/websocket input modes) |
+| `backend/gaze_test_eyetrax.py` | End-to-end benchmark: calibration → bias → evaluation → free tracking |
+| `backend/head_pose.py` | MediaPipe Face Mesh + `cv2.solvePnP` head-pose estimator (6-DoF) |
+| `backend/requirements.txt` | Pinned Python dependencies |
 | `RESULTS.md` | Full benchmark writeup, library comparison, negative results |
 | `Group_10_Project_Plan.pdf` | Original project plan |
 
@@ -37,6 +38,7 @@ Requires **Python 3.11.x** — MediaPipe 0.10.x does not support 3.12+ on
 macOS ARM64.
 
 ```bash
+cd backend
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -48,6 +50,7 @@ MediaPipe will download its FaceLandmarker model (~4 MB) into
 ## Running the benchmark
 
 ```bash
+cd backend
 python gaze_test_eyetrax.py
 ```
 
