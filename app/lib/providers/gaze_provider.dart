@@ -11,6 +11,14 @@ class GazeProvider extends ChangeNotifier {
 
   GazePoint get gazePoint => _gazePoint;
 
+  /// Latest pose-gate confidence reported by the backend (1.0 when head is
+  /// inside the calibrated range, dropping toward 0.0 outside it).
+  double get currentConfidence => _gazePoint.confidence;
+
+  /// Whether the backend currently flags the eye as blinking. Dwell logic
+  /// should ignore gaze during blinks to avoid spurious selections.
+  bool get isBlinking => _gazePoint.blink;
+
   /// Called by [EyeTrackingService] on each incoming gaze message.
   void updateGaze(GazePoint point) {
     _gazePoint = point;

@@ -25,10 +25,13 @@ comparison in [RESULTS.md](RESULTS.md).
 
 | Path | Role |
 |---|---|
-| `app/` | Flutter iPad AAC frontend (gaze cursor, dwell-to-select board, calibration UI, mouse/sim/websocket input modes) |
+| `app/` | Flutter AAC frontend (gaze cursor, dwell-to-select board, calibration UI, mouse/sim/websocket input modes) |
 | `backend/gaze_test_eyetrax.py` | End-to-end benchmark: calibration → bias → evaluation → free tracking |
+| `backend/gaze_pipeline.py` | Reusable `GazePipeline` class wrapping EyeTrax + bias + EMA + pose gate |
+| `backend/ws_server.py` | WebSocket server that streams gaze events to the Flutter app |
 | `backend/head_pose.py` | MediaPipe Face Mesh + `cv2.solvePnP` head-pose estimator (6-DoF) |
 | `backend/requirements.txt` | Pinned Python dependencies |
+| `PHASE3_PLAN.md` | Phase 3 integration plan (backend ↔ frontend wiring) |
 | `RESULTS.md` | Full benchmark writeup, library comparison, negative results |
 | `Group_10_Project_Plan.pdf` | Original project plan |
 
@@ -65,6 +68,128 @@ Three phases, driven by a pygame window:
    green ring means the pose gate is open; an orange ring means the
    current head pose is outside the calibration distribution and the
    prediction is marked low-confidence (`conf < 0.5`).
+
+## Running the full AAC app (backend + Flutter)
+
+The Flutter app in `app/` talks to the Python backend over a WebSocket
+(default port `8765`). Use two terminals.
+
+### Prerequisites
+
+- **Python venv** set up as in [Setup](#setup) above (`backend/.venv`).
+- **Flutter SDK** installed and `flutter doctor` clean.
+- **macOS Camera permission** granted to whichever terminal / IDE you run
+  `python` from: System Settings → Privacy & Security → Camera.
+- Close any other app that may be holding the webcam (Zoom, Teams,
+  FaceTime, Photo Booth).
+
+### Step 1 — Start the backend
+
+```bash
+cd backend
+.venv/bin/python ws_server.py
+```
+
+You should see:
+
+```
+[ws_server] Opening camera (index 0)…
+[ws_server] Camera opened: 1280x720  (test read: ok)
+[ws_server] Listening on ws://0.0.0.0:8765
+```
+
+| Symptom | Fix |
+|---|---|
+| `ERROR: cannot open camera` | Grant Camera permission to your terminal in System Settings → Privacy & Security → Camera, then restart. |
+| `Camera opened … (test read: FAILED)` | Another app is holding the webcam. Close it. |
+| First-run macOS permission popup | Click **Allow**, then restart the server. |
+
+Leave this terminal running.
+
+### Step 2 — Start the Flutter app
+
+In a second terminal:
+
+```bash
+cd app
+flutter pub get          # one-time
+flutter run -d chrome    # or: -d macos, -d <device-id>
+```
+
+Chrome is the easiest target for development. For a real tablet, use
+`flutter devices` to find the device id, then `flutter run -d <id>` and
+set the host to your laptop's LAN IP (see Step 3).
+
+### Step 3 — Configure connection
+
+In the app: **Home → Settings**.
+
+| Field | Value |
+|---|---|
+| Host | `localhost` (same machine) **or** the laptop's LAN IP (e.g. `192.168.1.x`) for tablet use |
+| Port | `8765` |
+| Dwell duration | default `1500` ms |
+
+Values are persisted via `SharedPreferences`, so you only need to set
+them once per device.
+
+### Step 4 — Connect
+
+**Home → Board**, then click the **WebSocket** button (wifi icon, top
+right of the board screen). The server terminal should print:
+
+```
+[ws_server] Client connected (1 total)
+```
+
+If it doesn't, check Chrome DevTools (F12) → Console for connection
+errors.
+
+### Step 5 — Calibrate
+
+**Home → Calibration → Start Calibration**.
+
+The pygame calibration window opens **on the laptop** (it may appear
+behind Chrome — Cmd-Tab to find it). Server terminal prints:
+
+```
+[ws_server] Received: start_calibration
+[ws_server] Calibration started
+```
+
+Follow ~30 seconds of dots:
+
+1. **13 blue dots** — calibration (Ridge regressor)
+2. **5 green dots** — bias measurement (affine correction)
+
+The Flutter UI shows a progress bar throughout. When the server prints
+`[ws_server] Calibration complete`, click **Go to Board** in the dialog.
+
+### Step 6 — Use the board
+
+You're now on the AAC board, and the server is streaming gaze
+coordinates at ~30 fps. Stare at any tile for the dwell duration
+(~1.5 s) — the dwell ring fills and TTS speaks the symbol's label.
+
+The dwell ring **cancels automatically** when the backend reports
+`confidence < 0.5` (head outside calibrated pose range) or a blink.
+
+### Step 7 — Stop
+
+`Ctrl-C` in the server terminal; close the Chrome tab. The server
+releases the camera and shuts down cleanly.
+
+### Alternative input modes
+
+Useful for development when you don't want to calibrate on every run:
+
+- **Mouse** — the OS mouse cursor drives the gaze cursor; dwell is
+  triggered by hovering on a tile. Lets you test the board layout
+  without a webcam.
+- **Sim** — `GazeSimulatorService` produces a random-walk fake gaze
+  through the same pipeline as the real backend.
+
+Both are toggled from the top-right mode selector on the board screen.
 
 ## How pose gating works
 

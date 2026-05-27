@@ -1,17 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/connection_provider.dart';
+import '../services/eye_tracking_service.dart';
 
 /// Eye-tracking calibration screen.
 ///
-/// Animates a pulsing target dot through 9 screen positions (3×3 grid).
-/// The user follows the dot with their eyes while the Python backend
-/// records the raw gaze coordinates to build its calibration model.
-///
-/// -- INTEGRATION NOTES --
-/// At each position, call the backend calibration endpoint before advancing:
-///   await eyeTrackingService.sendCalibrationPoint(index, alignment);
-/// Wait for an acknowledgement before calling [Future.delayed].
+/// Calibration is driven entirely by the Python backend (it opens a pygame
+/// window on the laptop and runs the 13-point + 5-anchor passes). This screen
+/// just triggers it and shows progress until the backend reports completion.
 class CalibrationScreen extends StatefulWidget {
   const CalibrationScreen({super.key});
 
@@ -19,50 +18,71 @@ class CalibrationScreen extends StatefulWidget {
   State<CalibrationScreen> createState() => _CalibrationScreenState();
 }
 
-class _CalibrationScreenState extends State<CalibrationScreen>
-    with SingleTickerProviderStateMixin {
-  // 9-point calibration grid
-  static const List<Alignment> _points = [
-    Alignment.topLeft,
-    Alignment.topCenter,
-    Alignment.topRight,
-    Alignment.centerLeft,
-    Alignment.center,
-    Alignment.centerRight,
-    Alignment.bottomLeft,
-    Alignment.bottomCenter,
-    Alignment.bottomRight,
-  ];
-
-  int _currentIndex = 0;
+class _CalibrationScreenState extends State<CalibrationScreen> {
   bool _isRunning = false;
-  late AnimationController _pulseController;
+  String _statusText = 'Press Start to begin calibration';
+  int _point = 0;
+  int _total = 0;
+  StreamSubscription<CalibrationEvent>? _sub;
+
+  EyeTrackingService get _service =>
+      context.read<ConnectionProvider>().eyeTrackingService;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sub = _service.calibrationStream.listen(_onEvent);
+    });
   }
 
   Future<void> _startCalibration() async {
+    final conn = context.read<ConnectionProvider>();
+    if (!conn.isConnected || conn.inputMode != GazeInputMode.websocket) {
+      _showSnack(
+        'Connect to the backend (WebSocket mode) before calibrating.',
+      );
+      return;
+    }
     setState(() {
       _isRunning = true;
-      _currentIndex = 0;
+      _statusText = 'Waiting for backend…';
+      _point = 0;
+      _total = 0;
     });
+    _service.startCalibration();
+  }
 
-    for (int i = 0; i < _points.length; i++) {
-      if (!mounted) return;
-      setState(() => _currentIndex = i);
-      // TODO: Send calibration point to backend and await acknowledgement.
-      await Future.delayed(const Duration(milliseconds: 1800));
-    }
-
+  void _onEvent(CalibrationEvent ev) {
     if (!mounted) return;
-    setState(() => _isRunning = false);
-    _showDoneDialog();
+    switch (ev.type) {
+      case CalibrationEventType.progress:
+        setState(() {
+          _point = ev.point;
+          _total = ev.total;
+          final phaseLabel = ev.phase == 'bias' ? 'Bias check' : 'Calibrating';
+          _statusText = '$phaseLabel — point ${ev.point} of ${ev.total}';
+        });
+        break;
+      case CalibrationEventType.done:
+        setState(() {
+          _isRunning = false;
+          _statusText = 'Calibration complete';
+        });
+        _showDoneDialog();
+        break;
+      case CalibrationEventType.failed:
+        setState(() {
+          _isRunning = false;
+          _statusText = 'Calibration failed: ${ev.reason ?? "unknown"}';
+        });
+        _showSnack(_statusText);
+        break;
+    }
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   void _showDoneDialog() {
@@ -76,8 +96,7 @@ class _CalibrationScreenState extends State<CalibrationScreen>
           style: TextStyle(color: Colors.white),
         ),
         content: const Text(
-          'All 9 calibration points captured.\n'
-          'TODO: Validate accuracy score from the backend before proceeding.',
+          'The backend has finished calibration. You can now use the board.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -88,6 +107,8 @@ class _CalibrationScreenState extends State<CalibrationScreen>
             ),
             onPressed: () {
               Navigator.pop(context);
+              // Resume gaze streaming after calibration finishes.
+              _service.startStream();
               Navigator.pushReplacementNamed(context, '/board');
             },
           ),
@@ -108,7 +129,7 @@ class _CalibrationScreenState extends State<CalibrationScreen>
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _sub?.cancel();
     super.dispose();
   }
 
@@ -116,85 +137,68 @@ class _CalibrationScreenState extends State<CalibrationScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // Instructions
-          Positioned(
-            top: 20,
-            left: 0,
-            right: 0,
-            child: Text(
-              _isRunning
-                  ? 'Follow the dot with your eyes  '
-                      '(${_currentIndex + 1} / ${_points.length})'
-                  : 'Press Start to begin 9-point calibration',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-          ),
-
-          // Animated calibration dot
-          if (_isRunning)
-            AnimatedAlign(
-              alignment: _points[_currentIndex],
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeInOut,
-              child: Padding(
-                padding: const EdgeInsets.all(48),
-                child: AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, _) {
-                    final size = 40 + _pulseController.value * 10;
-                    final opacity = 0.4 + _pulseController.value * 0.5;
-                    return Container(
-                      width: size,
-                      height: size,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.cyanAccent.withValues(alpha: opacity),
-                        border: Border.all(color: Colors.cyanAccent, width: 3),
-                      ),
-                    );
-                  },
-                ),
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.remove_red_eye,
+                  size: 80, color: Colors.cyanAccent),
+              const SizedBox(height: 24),
+              Text(
+                _statusText,
+                style: const TextStyle(color: Colors.white, fontSize: 20),
+                textAlign: TextAlign.center,
               ),
-            ),
-
-          // Action buttons
-          Positioned(
-            bottom: 32,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (!_isRunning)
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Start Calibration'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.cyanAccent,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 32, vertical: 16),
-                    ),
-                    onPressed: _startCalibration,
+              const SizedBox(height: 24),
+              if (_isRunning) ...[
+                SizedBox(
+                  width: 240,
+                  child: LinearProgressIndicator(
+                    value: (_total > 0) ? _point / _total : null,
+                    color: Colors.cyanAccent,
+                    backgroundColor: Colors.white12,
                   ),
-                const SizedBox(width: 16),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white38),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 16),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Back'),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Follow the dots on the laptop screen with your eyes.',
+                  style: TextStyle(color: Colors.white54),
+                  textAlign: TextAlign.center,
                 ),
               ],
-            ),
+              const SizedBox(height: 40),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (!_isRunning)
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Start Calibration'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.cyanAccent,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 16),
+                      ),
+                      onPressed: _startCalibration,
+                    ),
+                  const SizedBox(width: 16),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white38),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 16),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Back'),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

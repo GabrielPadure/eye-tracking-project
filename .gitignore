@@ -1,0 +1,18 @@
+# Python venvs / caches
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Benchmark outputs (regenerated on every run)
+backend/metrics_*.json
+backend/metrics_*.csv
+
+# Optional gaze logs (created when ws_server.py is run with --log)
+backend/*.log.csv

@@ -91,6 +91,18 @@ class _AacBoardScreenState extends State<AacBoardScreen> {
     final gaze = _gazeProvider?.gazePoint;
     if (gaze == null) return;
 
+    // Confidence / blink gate: when the backend reports the head is outside
+    // the calibrated range (or the user is blinking), cancel every dwell
+    // instead of letting hit-tests trigger false selections.
+    if (gaze.confidence < 0.5 || gaze.blink) {
+      final gridState = _gridKey.currentState;
+      if (gridState == null) return;
+      for (final key in gridState.tileKeys) {
+        key.currentState?.cancelDwell();
+      }
+      return;
+    }
+
     // Convert normalised gaze (0–1) to global screen pixels, matching the
     // same coordinate mapping used by [GazeCursorOverlay].
     final safeLeft = _cachedSafeAreaPadding.left;

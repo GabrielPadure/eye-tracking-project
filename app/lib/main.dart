@@ -26,18 +26,19 @@ void main() async {
 
   // Instantiate GazeProvider early so ConnectionProvider can wire into it.
   final gazeProvider = GazeProvider();
+  final connectionProvider = ConnectionProvider(
+    service: eyeTrackingService,
+    gazeProvider: gazeProvider,
+    config: const BackendConfig(),
+  );
+  // Restore any saved host/port/dwell before the UI renders the settings screen.
+  await connectionProvider.loadPersistedConfig();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: gazeProvider),
-        ChangeNotifierProvider(
-          create: (_) => ConnectionProvider(
-            service: eyeTrackingService,
-            gazeProvider: gazeProvider,
-            config: const BackendConfig(),
-          ),
-        ),
+        ChangeNotifierProvider.value(value: connectionProvider),
         ChangeNotifierProvider(
           create: (_) => BoardProvider(tts: ttsService),
         ),
