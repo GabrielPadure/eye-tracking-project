@@ -43,7 +43,10 @@ macOS ARM64.
 ```bash
 cd backend
 python3.11 -m venv .venv
+#mac:
 source .venv/bin/activate
+#windows:
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 

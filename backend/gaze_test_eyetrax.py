@@ -49,6 +49,8 @@ EVAL_POINTS = [(0.2, 0.2), (0.5, 0.2), (0.8, 0.2),
                (0.2, 0.8), (0.5, 0.8), (0.8, 0.8)]
 EVAL_HOLD_SEC = 2.0
 EVAL_WARMUP_SEC = 0.6
+
+CAMERA_INDEX = 0  #Change camera, 0 is default.
 # Exponential smoothing on live predictions. α higher = more responsive.
 SMOOTH_ALPHA = 0.3
 VIEWING_DISTANCE_CM = 60.0
@@ -81,7 +83,7 @@ px_per_cm = diag_px / (SCREEN_DIAG_INCHES * 2.54)
 est = GazeEstimator(model_name="ridge")
 pose_est = HeadPoseEstimator()
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(CAMERA_INDEX)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAM_W)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAM_H)
 print(f"Camera: {cap.get(cv2.CAP_PROP_FRAME_WIDTH)}x{cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
