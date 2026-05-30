@@ -28,14 +28,16 @@ import csv
 import json
 import queue
 import threading
+import math
 import time
 from typing import Optional
 
 import cv2
+import numpy as np
 import pygame
 import websockets
 
-from gaze_pipeline import GazePipeline, CALIB_MAP_PTS, BIAS_PTS
+from gaze_pipeline import GazePipeline, CALIB_MAP_PTS, BIAS_PTS, MAR_OPEN
 
 
 WINDOW_W, WINDOW_H = 1280, 800
@@ -44,6 +46,15 @@ CALIB_DWELL_SEC = 1.8
 CALIB_WARMUP_SEC = 0.4
 BIAS_DWELL_SEC = 1.2
 BIAS_WARMUP_SEC = 0.4
+
+# --- Phase 0 positioning gate (pre-calibration face alignment) ---
+POSITIONING_HOLD_SEC = 1.5          # continuous all-green needed to auto-advance
+POSITIONING_MAX_SEC = 25.0          # fallback: proceed anyway so we never hang
+POS_TZ_MIN, POS_TZ_MAX = 400, 850   # viewing-distance window (mm, |tz|)
+POS_TX_MAX = 120                    # mm off-center horizontally
+POS_TY_MAX = 180                    # mm off-center vertically
+POS_YAW_MAX = 0.18                  # rad (~10°)
+POS_PITCH_MAX = 0.22                # rad (~12.5°)
 
 
 class GazeServer:
@@ -79,6 +90,7 @@ class GazeServer:
         # Pygame state (lazy)
         self._screen = None
         self._font_big = None
+        self._font_small = None
         self._clock = None
         self._calibrating = False
 
@@ -144,6 +156,7 @@ class GazeServer:
         self._screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
         pygame.display.set_caption("AAC Gaze — Calibration")
         self._font_big = pygame.font.SysFont("Arial", 40, bold=True)
+        self._font_small = pygame.font.SysFont("Arial", 22)
         self._clock = pygame.time.Clock()
 
     def _draw_target(self, color, tgt_px, label):
@@ -153,6 +166,118 @@ class GazeServer:
         txt = self._font_big.render(label, True, (255, 255, 255))
         self._screen.blit(txt, (40, 40))
         pygame.display.flip()
+
+    # ------------------------------------------------------------------ #
+    # Phase 0 — face positioning (runs on the main thread)
+    # ------------------------------------------------------------------ #
+    def _positioning_phase(self):
+        """Pre-calibration face alignment. Shows a mirrored webcam preview
+        with a readiness checklist (face / centered / distance / head level).
+        Auto-advances after POSITIONING_HOLD_SEC of continuous all-green,
+        SPACE skips, and a POSITIONING_MAX_SEC fallback proceeds anyway so the
+        server never hangs if the user wanders off."""
+        print("[ws_server] Phase 0: positioning")
+        self._broadcast_threadsafe({
+            "type": "calibration_progress", "phase": "positioning",
+            "point": 0, "total": len(CALIB_MAP_PTS),
+        })
+
+        preview_w = min(int(WINDOW_W * 0.45), 720)
+        preview_h = int(preview_w * CAM_H / CAM_W)
+        preview_x = (WINDOW_W - preview_w) // 2
+        preview_y = int(WINDOW_H * 0.08)
+        list_x = preview_x
+        list_y = preview_y + preview_h + int(WINDOW_H * 0.04)
+        line_h = 32
+
+        def _txt(s, pos, color=(255, 255, 255), big=False):
+            f = self._font_big if big else self._font_small
+            self._screen.blit(f.render(s, True, color), pos)
+
+        t_ok_start = None
+        t_phase_start = time.perf_counter()
+        while True:
+            for e in pygame.event.get():
+                if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
+                    return
+            if time.perf_counter() - t_phase_start >= POSITIONING_MAX_SEC:
+                return
+
+            ret, frame = self.cap.read()
+            if not ret:
+                continue
+            feats, _blink, pose, _mar = self.pipeline.extract(frame)
+
+            face_ok = feats is not None
+            if pose is not None:
+                yaw, pitch, _roll, tx, ty, tz = pose.tolist()
+                dist_cm = abs(tz) / 10.0
+                centered = abs(tx) <= POS_TX_MAX and abs(ty) <= POS_TY_MAX
+                dist_ok = POS_TZ_MIN <= abs(tz) <= POS_TZ_MAX
+                orient_ok = abs(yaw) <= POS_YAW_MAX and abs(pitch) <= POS_PITCH_MAX
+            else:
+                yaw = pitch = tx = ty = tz = 0.0
+                dist_cm = 0.0
+                centered = dist_ok = orient_ok = False
+
+            all_ok = face_ok and centered and dist_ok and orient_ok
+            now = time.perf_counter()
+            if all_ok:
+                if t_ok_start is None:
+                    t_ok_start = now
+                elif now - t_ok_start >= POSITIONING_HOLD_SEC:
+                    return
+            else:
+                t_ok_start = None
+
+            # --- draw ---
+            self._screen.fill((0, 0, 0))
+            frame_rgb = cv2.cvtColor(cv2.flip(frame, 1), cv2.COLOR_BGR2RGB)
+            preview = cv2.resize(frame_rgb, (preview_w, preview_h))
+            preview_surf = pygame.surfarray.make_surface(
+                np.ascontiguousarray(preview.swapaxes(0, 1)))
+            border_color = (80, 220, 120) if all_ok else (255, 170, 40)
+            pygame.draw.rect(self._screen, border_color,
+                             (preview_x - 4, preview_y - 4,
+                              preview_w + 8, preview_h + 8), 4)
+            self._screen.blit(preview_surf, (preview_x, preview_y))
+
+            oval = pygame.Rect(0, 0, int(preview_w * 0.45), int(preview_h * 0.7))
+            oval.center = (preview_x + preview_w // 2,
+                           preview_y + preview_h // 2)
+            pygame.draw.ellipse(self._screen, (120, 180, 255), oval, 2)
+
+            _txt("Position your face", (preview_x, preview_y - 60), big=True)
+
+            checks = [
+                ("Face detected", face_ok, ""),
+                ("Centered", centered,
+                 f"  (offset x={tx:+.0f}mm  y={ty:+.0f}mm)"
+                 if pose is not None else "  (no face)"),
+                ("Distance good", dist_ok,
+                 f"  ({dist_cm:.0f} cm — aim 50-75 cm)"
+                 if pose is not None else "  (no face)"),
+                ("Head level", orient_ok,
+                 f"  (yaw={math.degrees(yaw):+.0f}° pitch={math.degrees(pitch):+.0f}°)"
+                 if pose is not None else "  (no face)"),
+            ]
+            for i, (label, ok, extra) in enumerate(checks):
+                color = (120, 255, 120) if ok else (255, 130, 130)
+                mark = "[OK]" if ok else "[  ]"
+                _txt(f"{mark}  {label}{extra}", (list_x, list_y + i * line_h),
+                     color)
+
+            bottom_y = list_y + len(checks) * line_h + int(WINDOW_H * 0.03)
+            if all_ok and t_ok_start is not None:
+                remaining = POSITIONING_HOLD_SEC - (now - t_ok_start)
+                _txt(f"Hold still — starting in {max(0.0, remaining):.1f}s",
+                     (list_x, bottom_y), (120, 255, 120), big=True)
+            else:
+                _txt("Adjust your position. SPACE to start now.",
+                     (list_x, bottom_y))
+
+            pygame.display.flip()
+            self._clock.tick(30)
 
     # ------------------------------------------------------------------ #
     # Calibration (runs on the main thread)
@@ -168,8 +293,14 @@ class GazeServer:
         except Exception:
             pass
 
-        # Fresh pipeline for this calibration run.
-        self.pipeline = GazePipeline(window_size=(WINDOW_W, WINDOW_H))
+        # Reset the existing pipeline for a fresh calibration run. We
+        # deliberately do NOT construct a new GazePipeline here: on Windows a
+        # second MediaPipe FaceLandmarker load mangles the absolute model path
+        # (errno 22). reset_calibration() reuses the already-loaded landmarker.
+        self.pipeline.reset_calibration()
+
+        # Phase 0 — let the user align their face before the dots start.
+        self._positioning_phase()
 
         total_calib = len(CALIB_MAP_PTS)
 
@@ -187,13 +318,14 @@ class GazeServer:
                 ret, frame = self.cap.read()
                 if not ret:
                     continue
-                feats, blink, pose = self.pipeline.extract(frame)
+                feats, blink, pose, mar = self.pipeline.extract(frame)
+                mouth_open = mar is not None and mar > MAR_OPEN
                 remain = CALIB_DWELL_SEC - (time.perf_counter() - t_start)
                 self._draw_target(
                     (100, 150, 255), tgt_px,
                     f"Calibration {i+1}/{total_calib}   {remain:.1f}s",
                 )
-                if (feats is not None and not blink and
+                if (feats is not None and not blink and not mouth_open and
                         time.perf_counter() - t_start >= CALIB_WARMUP_SEC):
                     self.pipeline.add_calibration_sample(feats, tgt_px, pose)
                 self._clock.tick(60)
@@ -220,15 +352,16 @@ class GazeServer:
                 ret, frame = self.cap.read()
                 if not ret:
                     continue
-                feats, blink, _pose = self.pipeline.extract(frame)
+                feats, blink, pose, mar = self.pipeline.extract(frame)
+                mouth_open = mar is not None and mar > MAR_OPEN
                 remain = BIAS_DWELL_SEC - (time.perf_counter() - t_start)
                 self._draw_target(
                     (80, 220, 120), tgt_px,
                     f"Bias {j+1}/{len(BIAS_PTS)}   {remain:.1f}s",
                 )
-                if (feats is not None and not blink and
+                if (feats is not None and not blink and not mouth_open and
                         time.perf_counter() - t_start >= BIAS_WARMUP_SEC):
-                    self.pipeline.add_bias_sample(feats, tgt_px)
+                    self.pipeline.add_bias_sample(feats, tgt_px, pose)
                 self._clock.tick(60)
 
         self.pipeline.fit_bias()

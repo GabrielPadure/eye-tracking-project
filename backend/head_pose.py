@@ -39,6 +39,17 @@ CANONICAL_3D = np.array([
 
 MP_INDICES = [1, 152, 33, 263, 61, 291]
 
+# Indices used for mouth-open detection (normalised by inter-eye distance so
+# it is roughly scale-invariant to head distance).
+#   13  — upper inner lip centre
+#   14  — lower inner lip centre
+#   33  — left eye outer corner
+#   263 — right eye outer corner
+MOUTH_TOP = 13
+MOUTH_BOT = 14
+EYE_L_OUTER = 33
+EYE_R_OUTER = 263
+
 
 def _camera_matrix(frame_w: int, frame_h: int) -> np.ndarray:
     # Pinhole assumption: focal ≈ image width, principal point at centre.
@@ -87,8 +98,15 @@ class HeadPoseEstimator:
 
     def estimate(self, frame_bgr) -> np.ndarray | None:
         """Return [yaw, pitch, roll, tx, ty, tz] or None on failure."""
+        pose, _mar = self.estimate_with_mar(frame_bgr)
+        return pose
+
+    def estimate_with_mar(self, frame_bgr):
+        """Return (pose_6d, mouth_aspect_ratio). Either element may be None
+        if face detection fails. MAR is lip opening normalised by inter-eye
+        distance, so ~0.0 closed, ~0.35+ wide open, roughly scale-free."""
         if frame_bgr is None:
-            return None
+            return None, None
         h, w = frame_bgr.shape[:2]
         if self._cam_mtx is None:
             self._cam_mtx = _camera_matrix(w, h)
@@ -98,7 +116,7 @@ class HeadPoseEstimator:
         rgb.flags.writeable = False
         res = self._mesh.process(rgb)
         if not res.multi_face_landmarks:
-            return None
+            return None, None
         lms = res.multi_face_landmarks[0].landmark
 
         pts_2d = np.array(
@@ -109,11 +127,20 @@ class HeadPoseEstimator:
             CANONICAL_3D, pts_2d, self._cam_mtx, self._dist,
             flags=cv2.SOLVEPNP_ITERATIVE,
         )
+        # Mouth aspect ratio — robust even when solvePnP fails.
+        mt = lms[MOUTH_TOP]
+        mb = lms[MOUTH_BOT]
+        el = lms[EYE_L_OUTER]
+        er = lms[EYE_R_OUTER]
+        mouth_px = abs((mb.y - mt.y) * h)
+        eye_px = float(np.hypot((er.x - el.x) * w, (er.y - el.y) * h))
+        mar = float(mouth_px / eye_px) if eye_px > 1e-3 else None
+
         if not ok:
-            return None
+            return None, mar
         yaw, pitch, roll = _rvec_to_euler(rvec)
         tx, ty, tz = float(tvec[0, 0]), float(tvec[1, 0]), float(tvec[2, 0])
-        return np.array([yaw, pitch, roll, tx, ty, tz], dtype=np.float32)
+        return np.array([yaw, pitch, roll, tx, ty, tz], dtype=np.float32), mar
 
     def close(self):
         try:
