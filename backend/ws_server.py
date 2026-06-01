@@ -7,6 +7,9 @@ Protocol — server → client (every processed frame, ~30 fps):
 
 Protocol — client → server:
     {"type": "start_calibration"}        # trigger calibration pass
+    {"type": "start_stream"}             # resume gaze streaming
+    {"type": "stop_stream"}              # pause gaze streaming
+    {"type": "shutdown"}                 # kill the server (Quit button)
 
 Protocol — server → client during calibration:
     {"type": "calibration_progress", "phase": "calibrating", "point": 3, "total": 13}
@@ -26,18 +29,46 @@ import argparse
 import asyncio
 import csv
 import json
+import mimetypes
+import os
 import queue
+import sys
 import threading
 import math
 import time
+from pathlib import Path
 from typing import Optional
 
 import cv2
 import numpy as np
 import pygame
 import websockets
+from websockets.datastructures import Headers
+from websockets.http11 import Response
 
 from gaze_pipeline import GazePipeline, CALIB_MAP_PTS, BIAS_PTS, MAR_OPEN
+
+
+# --------------------------------------------------------------------------- #
+# Resource paths — work both in dev (running from source) and packed (PyInstaller).
+# --------------------------------------------------------------------------- #
+def resource_path(*parts: str) -> Path:
+    """Resolve a path relative to the bundled resources directory.
+
+    Under PyInstaller the bundle is extracted to ``sys._MEIPASS``; in dev we
+    fall back to the project root (one level above ``backend/``).
+    """
+    base = getattr(sys, "_MEIPASS", None)
+    if base is None:
+        # backend/ws_server.py → project root
+        base = Path(__file__).resolve().parent.parent
+    return Path(base) / Path(*parts)
+
+
+def default_static_dir() -> Optional[Path]:
+    """Default location of the bundled Flutter web build."""
+    candidate = resource_path("app", "build", "web")
+    return candidate if candidate.is_dir() else None
 
 
 WINDOW_W, WINDOW_H = 1280, 800
@@ -70,9 +101,11 @@ class GazeServer:
                        server.
     """
 
-    def __init__(self, port: int = 8765, log_path: Optional[str] = None):
+    def __init__(self, port: int = 8765, log_path: Optional[str] = None,
+                 static_dir: Optional[Path] = None):
         self.port = port
         self.log_path = log_path
+        self.static_dir = static_dir
         self.pipeline = GazePipeline(window_size=(WINDOW_W, WINDOW_H))
         self.cap: Optional[cv2.VideoCapture] = None
         self.clients: set = set()
@@ -499,6 +532,16 @@ class GazeServer:
                 elif mtype == "stop_stream":
                     with self._lock:
                         self._streaming = False
+                elif mtype == "shutdown":
+                    # Client-requested server shutdown (Quit button in the
+                    # Flutter app). Ack first, then flag the main loop to
+                    # exit on its next tick.
+                    try:
+                        await ws.send(json.dumps({"type": "shutting_down"}))
+                    except Exception:
+                        pass
+                    print("[ws_server] Shutdown requested by client.")
+                    self._stop = True
         except websockets.ConnectionClosed:
             pass
         finally:
@@ -506,10 +549,62 @@ class GazeServer:
             print(f"[ws_server] Client disconnected "
                   f"({len(self.clients)} remaining)")
 
+    # ------------------------------------------------------------------ #
+    # HTTP static file serving (so the bundled Flutter web app is served
+    # by the same process / port as the WebSocket).
+    # ------------------------------------------------------------------ #
+    def _http_response(self, connection, request):
+        """websockets `process_request` hook.
+
+        Return a Response for plain HTTP GETs (serve a static file); return
+        None to let the request continue as a WebSocket upgrade.
+        """
+        # If the request is a WebSocket handshake, let it through.
+        if request.headers.get("Upgrade", "").lower() == "websocket":
+            return None
+        def _resp(status: int, reason: str, mime: str, body: bytes) -> Response:
+            h = Headers()
+            h["Content-Type"] = mime
+            h["Content-Length"] = str(len(body))
+            h["Cache-Control"] = "no-cache"
+            # Required for Flutter web's CanvasKit / WASM SharedArrayBuffer.
+            h["Cross-Origin-Opener-Policy"] = "same-origin"
+            h["Cross-Origin-Embedder-Policy"] = "require-corp"
+            return Response(status, reason, h, body)
+
+        if self.static_dir is None:
+            return _resp(404, "Not Found", "text/plain",
+                         b"static dir not set")
+
+        # Normalize path: "/", "/index.html", "/assets/foo.png"
+        rel = request.path.lstrip("/").split("?")[0] or "index.html"
+        # Prevent path traversal — resolve and ensure it stays under static_dir.
+        target = (self.static_dir / rel).resolve()
+        try:
+            target.relative_to(self.static_dir.resolve())
+        except ValueError:
+            return _resp(403, "Forbidden", "text/plain", b"forbidden")
+        if target.is_dir():
+            target = target / "index.html"
+        if not target.is_file():
+            return _resp(404, "Not Found", "text/plain",
+                         f"not found: {rel}".encode())
+
+        mime, _ = mimetypes.guess_type(str(target))
+        if mime is None:
+            mime = "application/octet-stream"
+        return _resp(200, "OK", mime, target.read_bytes())
+
     async def _serve(self):
         self._aio_loop = asyncio.get_running_loop()
-        print(f"[ws_server] Listening on ws://0.0.0.0:{self.port}")
-        async with websockets.serve(self.handle, "0.0.0.0", self.port):
+        msg = f"ws://0.0.0.0:{self.port}"
+        if self.static_dir is not None:
+            msg += f"  + HTTP static from {self.static_dir}"
+        print(f"[ws_server] Listening on {msg}")
+        async with websockets.serve(
+            self.handle, "0.0.0.0", self.port,
+            process_request=self._http_response,
+        ):
             # Park forever; the main thread does the real work.
             await asyncio.Future()
 
@@ -526,8 +621,26 @@ def main():
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--log", type=str, default=None,
                    help="optional CSV path to log gaze events")
+    p.add_argument(
+        "--static-dir", type=str, default=None,
+        help="directory to serve over HTTP (defaults to the bundled "
+             "Flutter web build if present). Pass empty string to disable.",
+    )
     args = p.parse_args()
-    server = GazeServer(port=args.port, log_path=args.log)
+
+    if args.static_dir is None:
+        static_dir = default_static_dir()
+    elif args.static_dir == "":
+        static_dir = None
+    else:
+        static_dir = Path(args.static_dir).resolve()
+        if not static_dir.is_dir():
+            print(f"[ws_server] --static-dir {static_dir} not found; "
+                  "HTTP serving disabled.")
+            static_dir = None
+
+    server = GazeServer(port=args.port, log_path=args.log,
+                        static_dir=static_dir)
     server.open_log()
     # Open the camera eagerly so the macOS permission prompt fires before
     # the user does anything else, and any failure is visible at boot.

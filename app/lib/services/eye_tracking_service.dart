@@ -129,6 +129,11 @@ class EyeTrackingService {
   /// Pause gaze streaming.
   void stopStream() => _send({'type': 'stop_stream'});
 
+  /// Ask the backend to shut itself down. Used by the in-app Quit button so
+  /// the user can stop the whole system (Python server + browser tab)
+  /// without having to find the terminal that launched it.
+  void shutdownServer() => _send({'type': 'shutdown'});
+
   // ---------------------------------------------------------------------------
   // Private handlers
   // ---------------------------------------------------------------------------

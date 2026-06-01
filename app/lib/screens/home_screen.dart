@@ -1,10 +1,84 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/connection_provider.dart';
 
 /// Entry screen shown when the app launches.
 ///
-/// Provides three navigation buttons: Start (AAC Board), Calibrate, Settings.
+/// Provides Start (AAC Board), Calibrate, Settings, and a Quit button that
+/// shuts the whole desktop bundle down (backend + browser tab).
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  Future<void> _confirmQuit(BuildContext context) async {
+    final conn = context.read<ConnectionProvider>();
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF16213E),
+        title: const Text('Quit AAC?',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'This stops the eye-tracking server and closes the app. '
+          'You will need to relaunch the desktop app to start again.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Quit',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (yes != true) return;
+
+    // If we aren't already connected (e.g. the user opened the app and went
+    // straight to Quit), open the WebSocket just long enough to deliver the
+    // shutdown message.
+    final wasConnected = conn.isConnected &&
+        conn.inputMode == GazeInputMode.websocket;
+    if (!wasConnected) {
+      try {
+        await conn.eyeTrackingService.connect(conn.config);
+        // Brief wait so the upgrade completes before we send.
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      } catch (_) {
+        // Fall through — we'll attempt the send anyway; failure is harmless.
+      }
+    }
+    conn.eyeTrackingService.shutdownServer();
+    // Give the WebSocket a moment to flush before we tear it down locally.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await conn.disconnect();
+
+    if (!context.mounted) return;
+    // Show a brief notice — the WebSocket is gone, and the next message hits
+    // a dead server. SystemNavigator.pop() doesn't close a browser tab, so on
+    // web the user closes the tab manually; on macOS/Windows the launcher
+    // process exits and the window goes away.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        backgroundColor: Color(0xFF16213E),
+        title: Text('Server stopped',
+            style: TextStyle(color: Colors.white)),
+        content: Text(
+          'You can close this tab now.',
+          style: TextStyle(color: Colors.white70),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +138,13 @@ class HomeScreen extends StatelessWidget {
               icon: Icons.settings_outlined,
               color: Colors.white70,
               onTap: () => Navigator.pushNamed(context, '/settings'),
+            ),
+            const SizedBox(height: 16),
+            _HomeButton(
+              label: 'Quit',
+              icon: Icons.power_settings_new,
+              color: Colors.redAccent,
+              onTap: () => _confirmQuit(context),
             ),
           ],
         ),

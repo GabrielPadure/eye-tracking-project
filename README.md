@@ -27,15 +27,78 @@ comparison in [RESULTS.md](RESULTS.md).
 |---|---|
 | `app/` | Flutter AAC frontend (gaze cursor, dwell-to-select board, calibration UI, mouse/sim/websocket input modes) |
 | `backend/gaze_test_eyetrax.py` | End-to-end benchmark: calibration → bias → evaluation → free tracking |
+| `backend/benchmark_pipeline.py` | Benchmark for the live `GazePipeline` (kernel ridge + pose-aware bias + MAR) — A/B counterpart to the script above |
 | `backend/gaze_pipeline.py` | Reusable `GazePipeline` class wrapping EyeTrax + bias + EMA + pose gate |
-| `backend/ws_server.py` | WebSocket server that streams gaze events to the Flutter app |
+| `backend/ws_server.py` | WebSocket + HTTP server: streams gaze events and serves the bundled Flutter web app |
+| `backend/launcher.py` | Single-binary entry point for the desktop app (PyInstaller) |
+| `backend/aac_app.spec` | PyInstaller spec — builds the `.app` / `.exe` |
+| `backend/build_macos.sh`, `build_windows.bat` | One-shot build scripts |
 | `backend/head_pose.py` | MediaPipe Face Mesh + `cv2.solvePnP` head-pose estimator (6-DoF) |
 | `backend/requirements.txt` | Pinned Python dependencies |
 | `PHASE3_PLAN.md` | Phase 3 integration plan (backend ↔ frontend wiring) |
 | `RESULTS.md` | Full benchmark writeup, library comparison, negative results |
 | `Group_10_Project_Plan.pdf` | Original project plan |
 
+## Desktop app (one-click install)
+
+The primary user-facing artefact is a single installable desktop bundle —
+no Python, no Flutter SDK, no terminals on the user's machine.
+
+| OS | File | Size |
+|---|---|---|
+| macOS (Apple Silicon) | `backend/dist/AAC.app` | ~630 MB |
+| Windows | `backend/dist/AAC/AAC.exe` (folder distribution) | ~600 MB |
+
+The bundle contains the Python backend (gaze pipeline + WebSocket + HTTP
+server), all native dependencies (MediaPipe, OpenCV, scikit-learn, pygame),
+the cached `face_landmarker.task` model, and the Flutter web build. The
+backend serves the Flutter app over `http://localhost:8765` and streams
+gaze events over `ws://localhost:8765` on the same port.
+
+### Using the desktop app
+
+1. Install the bundle (see [Building from source](#building-the-desktop-app-from-source)).
+2. Double-click the icon. On first launch:
+   - **macOS**: right-click → Open → click *Open* in the Gatekeeper
+     prompt (the `.app` is ad-hoc signed, not notarised). Approve the
+     camera permission prompt.
+   - **Windows**: SmartScreen warns about an unsigned `.exe` — click
+     *More info* → *Run anyway*.
+3. Your default browser opens at `http://localhost:8765/` showing the
+   AAC app. A pygame calibration window opens on the desktop on demand.
+4. Close the browser tab and Ctrl-C in the terminal (or quit the app
+   from the Dock / system tray) to stop.
+
+### Building the desktop app from source
+
+Prereqs: Python 3.11 venv (see [Setup](#setup)), Flutter SDK, and one
+prior run of `gaze_test_eyetrax.py` so `face_landmarker.task` is cached
+under `~/.cache/eyetrax/mediapipe/`.
+
+**macOS:**
+```bash
+cd backend
+.venv/bin/pip install pyinstaller
+./build_macos.sh
+# → backend/dist/AAC.app
+```
+
+**Windows:**
+```cmd
+cd backend
+.venv\Scripts\pip install pyinstaller
+build_windows.bat
+REM → backend\dist\AAC\AAC.exe
+```
+
+Both scripts run `flutter build web --release` followed by `pyinstaller
+aac_app.spec`. The macOS script also strips extended attributes and
+ad-hoc signs the bundle so Gatekeeper accepts it.
+
 ## Setup
+
+(for development / running the benchmark / hacking on the backend —
+**not** needed by end users of the desktop app)
 
 Requires **Python 3.11.x** — MediaPipe 0.10.x does not support 3.12+ on
 macOS ARM64.
