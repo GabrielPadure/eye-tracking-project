@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 
 /// Represents a single AAC communication symbol on the board.
 ///
-/// [imagePath] is null for placeholder symbols; set it when real
-/// Cboard assets are integrated.
+/// The image asset path is derived from [id] by convention:
+/// `assets/symbols/<id>.png` (see [SymbolImage]). The [color] is used as a
+/// tinted fallback when the asset is missing, and as accent colour on the
+/// tile border / selection state.
 class AacSymbol {
   final String id;
   final String label;
-  final String? imagePath;
   final String category;
 
-  /// Placeholder background color shown until real image assets are added.
+  /// Accent colour used for the tile border and the missing-asset fallback.
   final Color color;
 
   const AacSymbol({
     required this.id,
     required this.label,
-    this.imagePath,
     required this.category,
     required this.color,
   });

@@ -34,14 +34,34 @@ void main() async {
   // Restore any saved host/port/dwell before the UI renders the settings screen.
   await connectionProvider.loadPersistedConfig();
 
+  // Restore the user's selected board symbols before the board renders.
+  final boardProvider = BoardProvider(tts: ttsService);
+  await boardProvider.loadPersisted();
+
+  // Release background resources (simulator Timer, WebSocket subscription,
+  // TTS engine handle) when the OS signals app shutdown. Without this,
+  // long-lived timers/streams keep the Dart VM alive past window close on
+  // desktop targets and the process hangs in `flutter run`.
+  var disposed = false;
+  void cleanup() {
+    if (disposed) return;
+    disposed = true;
+    try { connectionProvider.dispose(); } catch (_) {} // disposes EyeTrackingService + simulator
+    try { boardProvider.dispose();      } catch (_) {} // disposes TtsService
+    try { gazeProvider.dispose();       } catch (_) {}
+  }
+
+  // AppLifecycleListener registers itself with WidgetsBinding on construction
+  // and stays alive for the life of the process via that binding reference.
+  // ignore: unused_local_variable
+  final lifecycleListener = AppLifecycleListener(onDetach: cleanup);
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: gazeProvider),
         ChangeNotifierProvider.value(value: connectionProvider),
-        ChangeNotifierProvider(
-          create: (_) => BoardProvider(tts: ttsService),
-        ),
+        ChangeNotifierProvider.value(value: boardProvider),
       ],
       child: const App(),
     ),

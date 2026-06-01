@@ -5,7 +5,7 @@ import '../providers/board_provider.dart';
 import '../providers/connection_provider.dart';
 import 'symbol_tile.dart';
 
-/// 2 × 2 grid of [SymbolTile] widgets driven by [BoardProvider].
+/// 3 × 2 grid of [SymbolTile] widgets driven by [BoardProvider].
 ///
 /// Exposes [tileKeys] so that [AacBoardScreen] can perform gaze hit-testing
 /// against each tile's [RenderBox] and drive dwell animations via
@@ -18,7 +18,7 @@ class AacBoardGrid extends StatefulWidget {
 }
 
 class AacBoardGridState extends State<AacBoardGrid> {
-  static const _cols = 2;
+  static const _cols = 3;
   static const _rows = 2;
 
   late List<GlobalKey<SymbolTileState>> tileKeys;

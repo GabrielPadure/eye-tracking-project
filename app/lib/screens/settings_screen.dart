@@ -111,6 +111,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 32),
 
+          // ── Board ─────────────────────────────────────────────────────────
+          const _SectionHeader(title: 'BOARD'),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.grid_view),
+            label: const Text('Edit Board Symbols'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.cyanAccent,
+              foregroundColor: Colors.black,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+            ),
+            onPressed: () => Navigator.pushNamed(context, '/board_editor'),
+          ),
+          const SizedBox(height: 32),
+
           // ── Calibration ───────────────────────────────────────────────────
           const _SectionHeader(title: 'CALIBRATION'),
           const SizedBox(height: 12),

@@ -27,16 +27,18 @@ class GazeSimulatorService {
   /// Half-width of the Gaussian-ish noise added during fixation.
   static const _fixationNoiseRadius = 0.022;
 
-  /// Approximate centres of the 2 × 2 symbol grid (normalised x, y).
+  /// Approximate centres of the 3 × 2 symbol grid (normalised x, y).
   ///
   /// These match the visual layout: grid is below the ~50 px top bar, split
   /// evenly across the screen width.  The real hit-test in [AacBoardScreen]
   /// uses [RenderBox] measurements, so small inaccuracies here are fine.
   static const _symbolTargets = <(double, double)>[
-    (0.27, 0.38), // top-left
-    (0.73, 0.38), // top-right
-    (0.27, 0.78), // bottom-left
-    (0.73, 0.78), // bottom-right
+    (0.20, 0.38), // top-left
+    (0.50, 0.38), // top-middle
+    (0.80, 0.38), // top-right
+    (0.20, 0.78), // bottom-left
+    (0.50, 0.78), // bottom-middle
+    (0.80, 0.78), // bottom-right
   ];
 
   final _random = Random();

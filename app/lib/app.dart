@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/aac_board_screen.dart';
+import 'screens/board_editor_screen.dart';
 import 'screens/calibration_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
@@ -27,6 +28,7 @@ class App extends StatelessWidget {
       routes: {
         '/': (_) => const HomeScreen(),
         '/board': (_) => const AacBoardScreen(),
+        '/board_editor': (_) => const BoardEditorScreen(),
         '/calibration': (_) => const CalibrationScreen(),
         '/settings': (_) => const SettingsScreen(),
       },

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/aac_symbol.dart';
 import '../providers/board_provider.dart';
+import 'symbol_image.dart';
 
 /// A single AAC communication symbol tile.
 ///
@@ -115,7 +116,7 @@ class SymbolTileState extends State<SymbolTile>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Expanded(
-                          child: _ImagePlaceholder(color: widget.symbol.color),
+                          child: SymbolImage(symbol: widget.symbol),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -151,23 +152,3 @@ class SymbolTileState extends State<SymbolTile>
   }
 }
 
-/// Coloured placeholder shown until real Cboard images are loaded.
-/// TODO: Replace with Image.asset(symbol.imagePath) or a network image widget.
-class _ImagePlaceholder extends StatelessWidget {
-  final Color color;
-
-  const _ImagePlaceholder({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Center(
-        child: Icon(Icons.image_outlined, size: 40, color: color),
-      ),
-    );
-  }
-}
