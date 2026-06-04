@@ -65,7 +65,8 @@ gaze events over `ws://localhost:8765` on the same port.
    - **Windows**: SmartScreen warns about an unsigned `.exe` — click
      *More info* → *Run anyway*.
 3. Your default browser opens at `http://localhost:8765/` showing the
-   AAC app. A pygame calibration window opens on the desktop on demand.
+   AAC app. Calibration targets appear inside the app when you start
+   calibration.
 4. Close the browser tab and Ctrl-C in the terminal (or quit the app
    from the Dock / system tray) to stop.
 
@@ -215,8 +216,7 @@ errors.
 
 **Home → Calibration → Start Calibration**.
 
-The pygame calibration window opens **on the laptop** (it may appear
-behind Chrome — Cmd-Tab to find it). Server terminal prints:
+The calibration targets appear inside the app. Server terminal prints:
 
 ```
 [ws_server] Received: start_calibration

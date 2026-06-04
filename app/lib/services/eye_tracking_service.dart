@@ -17,6 +17,8 @@ class CalibrationEvent {
   final int total;
   final String phase;
   final String? reason;
+  final double? x;
+  final double? y;
 
   const CalibrationEvent({
     required this.type,
@@ -24,6 +26,8 @@ class CalibrationEvent {
     this.total = 0,
     this.phase = '',
     this.reason,
+    this.x,
+    this.y,
   });
 }
 
@@ -33,7 +37,7 @@ class CalibrationEvent {
 ///
 /// Wire protocol — server → client:
 ///   {"x": 0.45, "y": 0.62, "confidence": 0.92, "blink": false}
-///   {"type": "calibration_progress", "phase": "calibrating", "point": 3, "total": 13}
+///   {"type": "calibration_progress", "phase": "calibrating", "point": 3, "total": 13, "x": 0.5, "y": 0.1}
 ///   {"type": "calibration_done"}
 ///   {"type": "calibration_failed", "reason": "..."}
 ///
@@ -168,6 +172,8 @@ class EyeTrackingService {
           phase: data['phase'] as String? ?? '',
           point: (data['point'] as num?)?.toInt() ?? 0,
           total: (data['total'] as num?)?.toInt() ?? 0,
+          x: (data['x'] as num?)?.toDouble(),
+          y: (data['y'] as num?)?.toDouble(),
         ));
         break;
       case 'calibration_done':

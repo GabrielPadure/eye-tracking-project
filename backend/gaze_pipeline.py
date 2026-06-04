@@ -2,7 +2,7 @@
 Reusable gaze pipeline — refactored from gaze_test_eyetrax.py and upgraded
 with the improved-calibration changes.
 
-Wraps EyeTrax feature extraction + a scikit-learn regressor (RBF KernelRidge
+Wraps EyeTrax feature extraction + a scikit-learn regressor (Ridge
 by default) + 13-point calibration + 5-anchor *pose-aware* affine bias
 correction + EMA smoothing + pose-gated confidence + mouth-open (MAR) gating
 into a single class driven by either the standalone benchmark or the
@@ -50,9 +50,9 @@ POSE_STD_FLOOR = np.array([0.05, 0.05, 0.05, 5.0, 5.0, 10.0], dtype=np.float32)
 # Closed mouth is ~0.02-0.05; talking/open ~0.25+. 0.18 is a safe margin.
 MAR_OPEN = 0.18
 
-# Default features → screen regressor. "kridge" (RBF KernelRidge) gives the
-# best accuracy; "ridge" (fast linear) and "mlp" are also available.
-DEFAULT_MODEL = "kridge"
+# Default features → screen regressor. "ridge" matches the EyeTrax baseline;
+# "kridge" (RBF KernelRidge) and "mlp" are also available.
+DEFAULT_MODEL = "ridge"
 
 CALIB_MAP_PTS = [
     (0.1, 0.1), (0.5, 0.1), (0.9, 0.1),

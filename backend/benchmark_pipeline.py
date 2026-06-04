@@ -10,7 +10,8 @@ Direct A/B counterpart to gaze_test_eyetrax.py:
   - Same 9-target evaluation grid (EVAL_POINTS) with the same dwell times.
 
 Differences this benchmark exercises (which the baseline does not):
-  - RBF KernelRidge regressor (sklearn) replaces EyeTrax's linear Ridge.
+    - Scikit-learn regressor (Ridge by default; KernelRidge optional) replaces
+        EyeTrax's built-in linear Ridge.
   - Pose-aware affine bias correction.
   - Mouth-open (MAR) gating — samples are dropped during calibration when
     the user's mouth opens.
@@ -64,7 +65,7 @@ pygame.init()
 pygame.font.init()
 sw, sh = WINDOW_W, WINDOW_H
 screen = pygame.display.set_mode((sw, sh))
-pygame.display.set_caption("Gaze Benchmark — Pipeline (kridge + pose bias + MAR)")
+pygame.display.set_caption("Gaze Benchmark — Pipeline (ridge + pose bias + MAR)")
 font_small = pygame.font.SysFont("Arial", 22)
 font_big = pygame.font.SysFont("Arial", 40, bold=True)
 
