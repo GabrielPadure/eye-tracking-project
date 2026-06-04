@@ -44,9 +44,7 @@ class HomeScreen extends StatelessWidget {
     // If we aren't already connected (e.g. the user opened the app and went
     // straight to Quit), open the WebSocket just long enough to deliver the
     // shutdown message.
-    final wasConnected = conn.isConnected &&
-        conn.inputMode == GazeInputMode.websocket;
-    if (!wasConnected) {
+    if (!conn.isConnected) {
       try {
         await conn.eyeTrackingService.connect(conn.config);
         // Brief wait so the upgrade completes before we send.

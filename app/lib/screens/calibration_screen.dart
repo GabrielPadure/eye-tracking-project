@@ -41,10 +41,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
 
   Future<void> _startCalibration() async {
     final conn = context.read<ConnectionProvider>();
-    if (!conn.isConnected || conn.inputMode != GazeInputMode.websocket) {
-      _showSnack(
-        'Connect to the backend (WebSocket mode) before calibrating.',
-      );
+    if (!conn.isConnected) {
+      _showSnack('Connect to the backend before calibrating.');
       return;
     }
     setState(() {
@@ -107,45 +105,66 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   }
 
   void _showDoneDialog() {
+    int secondsLeft = 3;
+    Timer? timer;
+
+    void goToBoard(BuildContext dialogCtx) {
+      timer?.cancel();
+      if (Navigator.canPop(dialogCtx)) Navigator.pop(dialogCtx);
+      if (!mounted) return;
+      // Resume gaze streaming after calibration finishes.
+      _service.startStream();
+      Navigator.pushReplacementNamed(context, '/board');
+    }
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
-        title: const Text(
-          'Calibration Complete',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'The backend has finished calibration. You can now use the board.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            child: const Text(
-              'Go to Board',
-              style: TextStyle(color: Colors.cyanAccent),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              // Resume gaze streaming after calibration finishes.
-              _service.startStream();
-              Navigator.pushReplacementNamed(context, '/board');
-            },
-          ),
-          TextButton(
-            child: const Text(
-              'Retry',
-              style: TextStyle(color: Colors.orangeAccent),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _startCalibration();
-            },
-          ),
-        ],
-      ),
-    );
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            // Start the auto-advance countdown the first time this rebuilds.
+            timer ??= Timer.periodic(const Duration(seconds: 1), (t) {
+              if (secondsLeft <= 1) {
+                goToBoard(dialogCtx);
+                return;
+              }
+              setDialogState(() => secondsLeft--);
+            });
+            return AlertDialog(
+              backgroundColor: const Color(0xFF16213E),
+              title: const Text(
+                'Calibration Complete',
+                style: TextStyle(color: Colors.white),
+              ),
+              content: Text(
+                'Going to the board in $secondsLeft…',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white54),
+                  ),
+                  onPressed: () {
+                    timer?.cancel();
+                    Navigator.pop(dialogCtx);
+                  },
+                ),
+                TextButton(
+                  child: const Text(
+                    'Go now',
+                    style: TextStyle(color: Colors.cyanAccent),
+                  ),
+                  onPressed: () => goToBoard(dialogCtx),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) => timer?.cancel());
   }
 
   @override

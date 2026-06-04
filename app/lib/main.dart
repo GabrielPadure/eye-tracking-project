@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -33,6 +35,13 @@ void main() async {
   );
   // Restore any saved host/port/dwell before the UI renders the settings screen.
   await connectionProvider.loadPersistedConfig();
+
+  // Open the WebSocket immediately so the user can go straight to Calibration
+  // without first visiting the board screen. In the bundled desktop build the
+  // backend is already up by the time the Flutter UI loads, so this usually
+  // succeeds within a second. If the backend isn't there (dev mode without
+  // ws_server.py), the status badge stays red and the user can tap to retry.
+  unawaited(connectionProvider.connect());
 
   // Restore the user's selected board symbols before the board renders.
   final boardProvider = BoardProvider(tts: ttsService);

@@ -8,7 +8,7 @@ class BackendConfig {
   final int dwellDurationMs;
 
   const BackendConfig({
-    this.host = '192.168.1.100',
+    this.host = 'localhost',
     this.port = 8765,
     this.dwellDurationMs = 1500,
   });

@@ -38,9 +38,6 @@ dependencies:
   # State management
   provider: ^6.1.2
 
-  # Camera feed for eye-tracking preview widget
-  camera: ^0.12.0+1
-
   # WebSocket client for real-time gaze data from Python/MediaPipe backend
   web_socket_channel: ^3.0.1
 
