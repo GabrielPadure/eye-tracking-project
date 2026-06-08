@@ -41,16 +41,13 @@ class HomeScreen extends StatelessWidget {
     );
     if (yes != true) return;
 
-    // If we aren't already connected (e.g. the user opened the app and went
-    // straight to Quit), open the WebSocket just long enough to deliver the
-    // shutdown message.
+
     if (!conn.isConnected) {
       try {
         await conn.eyeTrackingService.connect(conn.config);
         // Brief wait so the upgrade completes before we send.
         await Future<void>.delayed(const Duration(milliseconds: 250));
       } catch (_) {
-        // Fall through — we'll attempt the send anyway; failure is harmless.
       }
     }
     conn.eyeTrackingService.shutdownServer();
@@ -59,10 +56,7 @@ class HomeScreen extends StatelessWidget {
     await conn.disconnect();
 
     if (!context.mounted) return;
-    // Show a brief notice — the WebSocket is gone, and the next message hits
-    // a dead server. SystemNavigator.pop() doesn't close a browser tab, so on
-    // web the user closes the tab manually; on macOS/Windows the launcher
-    // process exits and the window goes away.
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,

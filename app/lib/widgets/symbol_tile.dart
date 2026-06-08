@@ -6,16 +6,6 @@ import '../providers/board_provider.dart';
 import 'symbol_image.dart';
 
 /// A single AAC communication symbol tile.
-///
-/// Displays a coloured image placeholder (swap in [AacSymbol.imagePath] when
-/// real Cboard assets are available), a text label, and a circular progress
-/// ring that fills during gaze dwell.
-///
-/// Interaction:
-/// • On desktop/dev: hover starts dwell, mouse exit cancels it.
-/// • On iPad: no hover, so gaze dwell is driven by the backend. Wire
-///   [startDwell] / [cancelDwell] to the gaze-hit-test logic in [AacBoardScreen].
-///   For now, a tap-and-hold gesture provides a fallback for manual testing.
 class SymbolTile extends StatefulWidget {
   final AacSymbol symbol;
   final int dwellDurationMs;
@@ -30,9 +20,6 @@ class SymbolTile extends StatefulWidget {
   State<SymbolTile> createState() => SymbolTileState();
 }
 
-/// Public state class so that [AacBoardScreen] can obtain a typed
-/// [GlobalKey<SymbolTileState>] and call [startDwell] / [cancelDwell]
-/// from gaze hit-test logic.
 class SymbolTileState extends State<SymbolTile>
     with SingleTickerProviderStateMixin {
   late AnimationController _dwellController;
@@ -47,9 +34,6 @@ class SymbolTileState extends State<SymbolTile>
     )..addStatusListener(_onDwellStatusChanged);
   }
 
-  // ---------------------------------------------------------------------------
-  // Dwell control — call these from gaze-hit-test logic when backend is ready.
-  // ---------------------------------------------------------------------------
 
   void startDwell() {
     if (_isDwelling) return;

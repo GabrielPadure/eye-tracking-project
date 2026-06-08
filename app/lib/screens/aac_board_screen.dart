@@ -9,20 +9,7 @@ import '../widgets/gaze_cursor_overlay.dart';
 import '../widgets/symbol_tile.dart';
 
 /// Main AAC communication board screen.
-///
-/// Layout (landscape iPad):
-/// ┌─────────────────────────────────────────────────────────────┐
-/// │  [←]  Eye Track AAC               ▶ LastWord     [● Conn]  │  ← _TopBar
-/// │                                                             │
-/// │  ┌──────┐ ┌──────┐ ┌──────┐                               │
-/// │  │  🖼  │ │  🖼  │ │  🖼  │                               │
-/// │  │ Yes  │ │  No  │ │ Eat  │                               │  ← AacBoardGrid
-/// │  ├──────┤ ├──────┤ ├──────┤                               │    (3 × 2)
-/// │  │ Drink│ │ Help │ │ Play │                               │
-/// │  └──────┘ └──────┘ └──────┘                               │
-/// │        [gaze dot — transparent overlay]                    │
-/// └─────────────────────────────────────────────────────────────┘
-///
+
 /// This screen listens to [GazeProvider] and performs a [RenderBox] hit-test
 /// against each tile to drive [SymbolTileState.startDwell] /
 /// [SymbolTileState.cancelDwell].
@@ -57,10 +44,6 @@ class _AacBoardScreenState extends State<AacBoardScreen> {
     _gazeProvider?.removeListener(_onGazeUpdate);
     super.dispose();
   }
-
-  // ---------------------------------------------------------------------------
-  // Gaze hit-test
-  // ---------------------------------------------------------------------------
 
   void _onGazeUpdate() {
     final gaze = _gazeProvider?.gazePoint;
@@ -112,10 +95,6 @@ class _AacBoardScreenState extends State<AacBoardScreen> {
       }
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Build
-  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {

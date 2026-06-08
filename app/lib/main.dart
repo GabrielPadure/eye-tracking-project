@@ -36,11 +36,6 @@ void main() async {
   // Restore any saved host/port/dwell before the UI renders the settings screen.
   await connectionProvider.loadPersistedConfig();
 
-  // Open the WebSocket immediately so the user can go straight to Calibration
-  // without first visiting the board screen. In the bundled desktop build the
-  // backend is already up by the time the Flutter UI loads, so this usually
-  // succeeds within a second. If the backend isn't there (dev mode without
-  // ws_server.py), the status badge stays red and the user can tap to retry.
   unawaited(connectionProvider.connect());
 
   // Restore the user's selected board symbols before the board renders.
@@ -48,9 +43,7 @@ void main() async {
   await boardProvider.loadPersisted();
 
   // Release background resources (simulator Timer, WebSocket subscription,
-  // TTS engine handle) when the OS signals app shutdown. Without this,
-  // long-lived timers/streams keep the Dart VM alive past window close on
-  // desktop targets and the process hangs in `flutter run`.
+  // TTS engine handle) when the OS signals app shutdown. 
   var disposed = false;
   void cleanup() {
     if (disposed) return;
@@ -62,7 +55,6 @@ void main() async {
 
   // AppLifecycleListener registers itself with WidgetsBinding on construction
   // and stays alive for the life of the process via that binding reference.
-  // ignore: unused_local_variable
   final lifecycleListener = AppLifecycleListener(onDetach: cleanup);
 
   runApp(
