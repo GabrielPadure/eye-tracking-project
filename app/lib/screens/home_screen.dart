@@ -107,7 +107,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'iPad Eye Tracking Interface',
+              'Eye Tracking Interface',
               style: TextStyle(color: Colors.white54, fontSize: 16),
             ),
             const SizedBox(height: 48),

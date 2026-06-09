@@ -48,7 +48,7 @@ no Python, no Flutter SDK, no terminals on the user's machine.
 
 | OS | File | Size |
 |---|---|---|
-| Windows | [`AAC.exe`](https://github.com/GabrielPadure/eye-tracking-project/releases/download/v1.0/AAC.exe) | ~31 MB |
+| Windows | [`AAC-Windows.zip`](https://github.com/GabrielPadure/eye-tracking-project/releases/latest) | ~600 MB |
 
 The bundle contains the Python backend (gaze pipeline + WebSocket + HTTP
 server), all native dependencies (MediaPipe, OpenCV, scikit-learn, pygame),
@@ -58,11 +58,8 @@ gaze events over `ws://localhost:8765` on the same port.
 
 ### Using the desktop app
 
-1. Install the bundle (see [Building from source](#building-the-desktop-app-from-source)).
-2. Double-click the icon. On first launch:
-   - **macOS**: right-click → Open → click *Open* in the Gatekeeper
-     prompt (the `.app` is ad-hoc signed, not notarised). Approve the
-     camera permission prompt.
+1. Download `AAC-Windows.zip` from the [latest release](https://github.com/GabrielPadure/eye-tracking-project/releases/latest), extract it, and run `AAC.exe` from inside the extracted folder.
+2. On first launch:
    - **Windows**: SmartScreen warns about an unsigned `.exe` — click
      *More info* → *Run anyway*.
 3. Your default browser opens at `http://localhost:8765/` showing the
