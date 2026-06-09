@@ -5,21 +5,6 @@ Eye-gaze tracking pipeline for an Augmentative and Alternative Communication
 Group 10. The pipeline drives a Cboard-based on-screen keyboard by estimating
 where a non-speaking user is looking, using only a standard laptop webcam.
 
-## Result
-
-**1.50° mean angular error** across 9 calibration-grid targets on a single
-healthy user at ~60 cm viewing distance — meets the project plan's <2°
-threshold. Full per-target breakdown, failure-mode analysis and library
-comparison in [RESULTS.md](RESULTS.md).
-
-| | Value |
-|---|---|
-| Library | EyeTrax 0.4.0 (Ridge regressor) |
-| Post-processing | 13-point calibration → affine bias → EMA (α=0.3) → pose-gated confidence |
-| Mean angular error | 1.50° |
-| Mean precision (σ at fixation) | 32 px |
-| Throughput | 113 fps on MacBook Air M4 |
-| Face detection rate | 100 % |
 
 ## Repository contents
 
@@ -62,9 +47,9 @@ gaze events over `ws://localhost:8765` on the same port.
 2. On first launch:
    - **Windows**: SmartScreen warns about an unsigned `.exe` — click
      *More info* → *Run anyway*.
-3. Your default browser opens at `http://localhost:8765/` showing the
+3. Make sure your default browser is set to Google Chrome. Your default browser opens at `http://localhost:8765/` showing the
    AAC app. Calibration targets appear inside the app when you start
-   calibration.
+   calibration. 
 4. Close the browser tab and Ctrl-C in the terminal (or quit the app
    from the Dock / system tray) to stop.
 
@@ -254,27 +239,6 @@ Useful for development when you don't want to calibrate on every run:
   through the same pipeline as the real backend.
 
 Both are toggled from the top-right mode selector on the board screen.
-
-## How pose gating works
-
-After calibration, the 6-dim head-pose vector (yaw, pitch, roll, tx, ty,
-tz from `cv2.solvePnP` on 6 MediaPipe landmarks) has per-dim mean/std
-computed, with each std floored at `[0.05 rad, 0.05 rad, 0.05 rad, 5 mm,
-5 mm, 10 mm]` to prevent a pathologically narrow gate. At runtime,
-
-```
-z = sqrt(mean(((p − μ) / σ)²))
-conf = max(0, 1 − z / 3.0)
-```
-
-`conf` is included in each CSV row and surfaced live in the free-tracking
-overlay. Downstream Cboard integration can drop dwell progress when
-`conf < 0.5`.
-
-Head-pose features were also tested as direct inputs to the Ridge
-regressor; they regressed accuracy catastrophically. See RESULTS.md
-§"Head-pose compensation — negative result" for the full diagnosis —
-feature-scale mismatch on a linear regressor.
 
 ## Authors
 
