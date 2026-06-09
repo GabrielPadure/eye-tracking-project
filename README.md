@@ -44,10 +44,11 @@ comparison in [RESULTS.md](RESULTS.md).
 The primary user-facing artefact is a single installable desktop bundle —
 no Python, no Flutter SDK, no terminals on the user's machine.
 
+> **Download:** [Latest release → v1.0](https://github.com/GabrielPadure/eye-tracking-project/releases/latest)
+
 | OS | File | Size |
 |---|---|---|
-| macOS (Apple Silicon) | `backend/dist/AAC.app` | ~630 MB |
-| Windows | `backend/dist/AAC/AAC.exe` (folder distribution) | ~600 MB |
+| Windows | [`AAC.exe`](https://github.com/GabrielPadure/eye-tracking-project/releases/download/v1.0/AAC.exe) | ~31 MB |
 
 The bundle contains the Python backend (gaze pipeline + WebSocket + HTTP
 server), all native dependencies (MediaPipe, OpenCV, scikit-learn, pygame),
