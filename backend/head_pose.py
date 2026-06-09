@@ -84,7 +84,7 @@ class HeadPoseEstimator:
     """
 
     def __init__(self):
-        import mediapipe as mp  # type: ignore
+        import mediapipe as mp  
         self._mp = mp
         self._mesh = mp.solutions.face_mesh.FaceMesh(
             static_image_mode=False,

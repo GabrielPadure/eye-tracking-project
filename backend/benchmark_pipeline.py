@@ -158,14 +158,14 @@ for i, (fx, fy) in enumerate(CALIB_MAP_PTS):
         clock.tick(60)
 
 if not running or not pipeline.train():
-    n = len(pipeline._X_calib)  # type: ignore[attr-defined]
+    n = len(pipeline._X_calib) 
     print(f"Not enough calibration samples ({n}), aborting.")
     pygame.quit()
     cap.release()
     pipeline.close()
     raise SystemExit(1)
 
-print(f"Trained on {len(pipeline._X_calib)} samples. "  # type: ignore[attr-defined]
+print(f"Trained on {len(pipeline._X_calib)} samples. " 
       f"Skipped {mouth_skips} mouth-open frames.")
 
 # =========================================================
@@ -219,8 +219,7 @@ for fx, fy in EVAL_POINTS:
             break
 
         # process_frame() runs the full live pipeline: regressor → pose bias
-        # → EMA smoothing → confidence gate → mouth-open hold. We read it
-        # inside the camera loop so timing matches the baseline benchmark.
+        # → EMA smoothing → confidence gate → mouth-open hold. 
         t0 = time.perf_counter()
         ret, frame = cap.read()
         if not ret:
@@ -333,7 +332,7 @@ summary = {
                "viewing_distance_cm": VIEWING_DISTANCE_CM},
     "calibration": {
         "n_points": len(CALIB_MAP_PTS),
-        "n_samples": len(pipeline._X_calib),  # type: ignore[attr-defined]
+        "n_samples": len(pipeline._X_calib), 
         "mouth_open_skips": mouth_skips,
     },
     "frames": {"total": total, "face_detected": face_ok,
@@ -357,7 +356,7 @@ print(f"Model:     {pipeline.model_kind}  "
       f"(pose_bias={pipeline.pose_bias}, MAR>{MAR_OPEN})")
 print(f"Frames:    {total}  ({face_ok} with face, {det_rate*100:.1f}% detection)")
 print(f"FPS:       {fps:.1f}  (avg {avg_ms:.1f} ms/frame)")
-print(f"Calib:     {len(pipeline._X_calib)} samples "  # type: ignore[attr-defined]
+print(f"Calib:     {len(pipeline._X_calib)} samples " 
       f"across {len(CALIB_MAP_PTS)} targets  "
       f"(skipped {mouth_skips} mouth-open frames)")
 print(f"Accuracy:  {mean_acc:.1f} px  (~{mean_ang:.2f}° at {VIEWING_DISTANCE_CM}cm)")

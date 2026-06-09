@@ -275,7 +275,6 @@ def apply_correction(raw_x, raw_y):
     return float(cx @ v), float(cy @ v)
 
 
-# Smoothing state (exponential moving average)
 smooth_state = [None, None]
 
 

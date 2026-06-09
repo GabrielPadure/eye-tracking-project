@@ -12,19 +12,6 @@ EyeTrax is used only for the 489-dim feature vector + blink flag; the
 features → (screen_x, screen_y) mapping is a separate sklearn model so we can
 use a kernel/MLP regressor instead of EyeTrax's built-in linear Ridge.
 
-Typical usage:
-
-    pipe = GazePipeline(window_size=(1280, 800))
-    # Calibration is normally driven by an external loop (pygame in the
-    # benchmark; the WebSocket server in production) that calls
-    # pipe.add_calibration_sample(...) and then pipe.train().
-    pipe.train()
-    # ... bias pass ...
-    pipe.fit_bias()
-    while True:
-        out = pipe.process_frame(frame)
-        if out is not None:
-            send_to_client(out)   # {"x","y","confidence","blink"}
 """
 
 from __future__ import annotations
@@ -46,8 +33,7 @@ SMOOTH_ALPHA = 0.3
 POSE_GATE_Z = 3.0
 POSE_STD_FLOOR = np.array([0.05, 0.05, 0.05, 5.0, 5.0, 10.0], dtype=np.float32)
 
-# Mouth-open threshold (lips separated by >MAR_OPEN * inter-eye distance).
-# Closed mouth is ~0.02-0.05; talking/open ~0.25+. 0.18 is a safe margin.
+# Mouth-open threshold
 MAR_OPEN = 0.18
 
 # Default features → screen regressor. "ridge" matches the EyeTrax baseline;
@@ -94,7 +80,7 @@ class GazeModel:
         self.model_y = _build_regressor(kind)
 
     def fit(self, X: np.ndarray, y: np.ndarray):
-        # For KernelRidge with gamma=None, sklearn uses 1.0 — we instead
+        # For KernelRidge with gamma=None, sklearn uses 1.0, we instead
         # auto-scale so behavior matches 'scale' mode on the scaled inputs.
         if self.kind == "kridge":
             n_feat = X.shape[1]
@@ -171,8 +157,7 @@ class GazePipeline:
         Crucially this reuses the existing MediaPipe FaceLandmarker (held by
         ``self.est``) rather than constructing a new GazeEstimator. On Windows,
         creating a second FaceLandmarker with an absolute ``model_asset_path``
-        mangles the path (MediaPipe joins it onto its own resource root,
-        producing ``…/site-packages/C:\\…\\face_landmarker.task`` → errno 22).
+        mangles the path.
         The features→screen regressor is sklearn-only, so it is rebuilt fresh.
         """
         self.gaze_model = GazeModel(self.model_kind)
@@ -222,7 +207,7 @@ class GazePipeline:
             + pose :  [1, raw_x, raw_y, yaw, pitch, roll, tx, ty, tz]  (pose z-scored)
 
         The pose-augmented version captures how the residual error depends on
-        current head pose — learned *after* gaze regression, so it doesn't
+        current head pose — learned after gaze regression, so it doesn't
         suffer the feature-scale mismatch that killed in-regressor pose use.
         """
         if len(self._bias_raw) < 10:
@@ -308,7 +293,7 @@ class GazePipeline:
         detected.
 
         On a blink OR an open mouth (talking), the last smoothed position is
-        held (smoothing is not advanced) and `blink` is reported True so the
+        held (smoothing is not advanced) and blink is reported True so the
         client cancels any in-progress dwell — preventing false selections.
         """
         if not self._trained:

@@ -104,8 +104,7 @@ class GazeServer:
         self.cap: Optional[cv2.VideoCapture] = None
         self.clients: set = set()
 
-        # Cross-thread state. Lock guards `_calibration_requested` /
-        # `_streaming` so the main thread can read/write them safely.
+        
         self._lock = threading.Lock()
         self._calibration_requested = False
         self._streaming = True
