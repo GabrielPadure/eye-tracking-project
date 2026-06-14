@@ -34,7 +34,7 @@ no Python, no Flutter SDK, no terminals on the user's machine.
 | OS | File | Size |
 |---|---|---|
 | Windows | [`AAC-Windows.zip`](https://github.com/GabrielPadure/eye-tracking-project/releases/latest) | ~600 MB |
-| Windows | [`AAC-macOS.zip`](https://github.com/GabrielPadure/eye-tracking-project/releases/latest) | ~600 MB |
+| macOS | [`AAC-macOS.zip`](https://github.com/GabrielPadure/eye-tracking-project/releases/latest) | ~600 MB |
 
 The bundle contains the Python backend (gaze pipeline + WebSocket + HTTP
 server), all native dependencies (MediaPipe, OpenCV, scikit-learn, pygame),
